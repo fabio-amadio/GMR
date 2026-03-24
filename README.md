@@ -555,14 +555,14 @@ The original robot models can be found at the following locations:
 
 ## Retargeting from Precomputed SMPL-X Body Poses
 
-If you already have a lightweight SMPL-X body-pose file such as `motion_shape.npz` with the keys `body_names`, `body_pos`, `body_quat`, and `hz`, you can retarget a single motion directly while visualizing it in MuJoCo:
+If you already have a lightweight SMPL-X body-pose file such as `motion_shape.npz` with the keys `body_link_names`, `body_pos_w`, `body_quat_w`, `betas`, and `fps`, you can retarget a single motion directly while visualizing it in MuJoCo:
 
 ```bash
 conda activate gmr
 python scripts/smplx_bodypos_to_robot.py --motion_file <path_to_motion_shape.npz> --robot unitree_g1 --rate_limit
 ```
 
-By default, this opens the MuJoCo visualization window and saves the retargeted robot motion next to the source file as `motion_shape_g1.npz`.
+By default, this opens the MuJoCo visualization window and saves the retargeted robot motion next to the source file as `motion_shape_g1.npz`. The saved robot `.npz` uses the world-frame keys `body_link_names`, `body_pos_w`, `body_quat_w`, `dof_pos`, and `fps`.
 
 If you want to choose the output path explicitly:
 
@@ -591,6 +591,11 @@ If you want to mirror the outputs into a separate target folder instead:
 ```bash
 python scripts/smplx_bodypos_to_robot_dataset.py --src_folder <path_to_folder_with_motion_shape_files> --tgt_folder <path_to_save_robot_data_folder> --num_workers 1
 ```
+
+Here, `--tgt_folder` is the output root folder. The script preserves each source file's path relative to `--src_folder` and writes the retargeted result under `--tgt_folder`.
+
+Example:
+If `--src_folder` is `/data/motions`, the source file is `/data/motions/walks/seq_01/motion_shape.npz`, and `--tgt_folder` is `/data/robot_motions`, the output will be `/data/robot_motions/walks/seq_01/motion_shape_g1.npz`.
 
 Useful options:
 - `--override`: overwrite existing `motion_shape_g1.npz` files

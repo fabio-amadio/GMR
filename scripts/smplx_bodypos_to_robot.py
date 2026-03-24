@@ -14,7 +14,7 @@ from general_motion_retargeting import RobotMotionViewer
 from general_motion_retargeting import save_robot_motion
 
 
-REQUIRED_KEYS = ("body_names", "body_pos", "body_quat", "hz")
+REQUIRED_KEYS = ("body_link_names", "body_pos_w", "body_quat_w", "betas", "fps")
 ROBOT_CHOICES = [
     "unitree_g1",
     "unitree_g1_with_hands",
@@ -60,39 +60,38 @@ def load_bodypose_motion(motion_file):
                 f"Expected keys: {REQUIRED_KEYS}."
             )
 
-        body_names = np.asarray(motion_npz["body_names"])
-        body_pos = np.asarray(motion_npz["body_pos"], dtype=np.float32)
-        body_quat = np.asarray(motion_npz["body_quat"], dtype=np.float32)
+        body_names = np.asarray(motion_npz["body_link_names"])
+        body_pos = np.asarray(motion_npz["body_pos_w"], dtype=np.float32)
+        body_quat = np.asarray(motion_npz["body_quat_w"], dtype=np.float32)
+        betas = np.asarray(motion_npz["betas"], dtype=np.float32)
 
-        hz_value = np.asarray(motion_npz["hz"])
-        if hz_value.shape != ():
-            raise ValueError(f"Expected scalar hz in {motion_path}, got shape {hz_value.shape}.")
-        motion_fps = float(hz_value.item())
-
-        betas = np.asarray(motion_npz["betas"], dtype=np.float32) if "betas" in motion_npz else None
+        fps_value = np.asarray(motion_npz["fps"])
+        if fps_value.shape != ():
+            raise ValueError(f"Expected scalar fps in {motion_path}, got shape {fps_value.shape}.")
+        motion_fps = float(fps_value.item())
 
     if body_names.ndim != 1:
-        raise ValueError(f"Expected body_names to have shape (N,), got {body_names.shape}.")
+        raise ValueError(f"Expected body_link_names to have shape (N,), got {body_names.shape}.")
     if body_pos.ndim != 3 or body_pos.shape[-1] != 3:
-        raise ValueError(f"Expected body_pos to have shape (T, N, 3), got {body_pos.shape}.")
+        raise ValueError(f"Expected body_pos_w to have shape (T, N, 3), got {body_pos.shape}.")
     if body_quat.ndim != 3 or body_quat.shape[-1] != 4:
-        raise ValueError(f"Expected body_quat to have shape (T, N, 4), got {body_quat.shape}.")
+        raise ValueError(f"Expected body_quat_w to have shape (T, N, 4), got {body_quat.shape}.")
     if body_pos.shape[:2] != body_quat.shape[:2]:
         raise ValueError(
-            "body_pos and body_quat must have the same first two dimensions, "
+            "body_pos_w and body_quat_w must have the same first two dimensions, "
             f"got {body_pos.shape[:2]} and {body_quat.shape[:2]}."
         )
     if body_pos.shape[1] != len(body_names):
         raise ValueError(
-            "The number of joints in body_pos/body_quat must match body_names, "
+            "The number of joints in body_pos_w/body_quat_w must match body_link_names, "
             f"got {body_pos.shape[1]} joints and {len(body_names)} names."
         )
     if motion_fps <= 0:
-        raise ValueError(f"Expected hz to be positive, got {motion_fps}.")
+        raise ValueError(f"Expected fps to be positive, got {motion_fps}.")
 
     joint_names = [str(name) for name in body_names.tolist()]
     if len(set(joint_names)) != len(joint_names):
-        raise ValueError(f"body_names must be unique, got duplicates in {motion_path}.")
+        raise ValueError(f"body_link_names must be unique, got duplicates in {motion_path}.")
 
     frame_data = []
     for frame_pos, frame_quat in zip(body_pos, body_quat):
@@ -123,24 +122,19 @@ def build_robot_motion(qpos_list, motion_fps, xml_file):
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     kinematics_model = KinematicsModel(xml_file, device=device)
 
-    num_frames = qpos_array.shape[0]
-    identity_root_pos = torch.zeros((num_frames, 3), device=device)
-    identity_root_rot = torch.zeros((num_frames, 4), device=device)
-    identity_root_rot[:, -1] = 1.0
-
-    local_body_pos, _ = kinematics_model.forward_kinematics(
-        identity_root_pos,
-        identity_root_rot,
+    body_pos_w, body_quat_xyzw = kinematics_model.forward_kinematics(
+        torch.from_numpy(root_pos).to(device=device, dtype=torch.float32),
+        torch.from_numpy(root_rot_xyzw).to(device=device, dtype=torch.float32),
         torch.from_numpy(dof_pos).to(device=device, dtype=torch.float32),
     )
+    body_quat_wxyz = body_quat_xyzw[..., [3, 0, 1, 2]]
 
     return {
-        "fps": motion_fps,
-        "root_pos": root_pos,
-        "root_rot": root_rot_xyzw,
+        "body_link_names": np.asarray(kinematics_model.body_names),
+        "body_pos_w": body_pos_w.detach().cpu().numpy(),
+        "body_quat_w": body_quat_wxyz.detach().cpu().numpy(),
         "dof_pos": dof_pos,
-        "local_body_pos": local_body_pos.detach().cpu().numpy(),
-        "link_body_list": np.asarray(kinematics_model.body_names),
+        "fps": motion_fps,
     }
 
 

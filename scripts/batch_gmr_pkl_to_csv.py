@@ -23,13 +23,11 @@ if __name__ == "__main__":
 
     for i, file in enumerate(motion_files, start=1):
         motion_path = os.path.join(args.folder, file)
-        motion_data, *_ = load_robot_motion(motion_path)
+        _, frame_rate, root_pos, root_rot_wxyz, dof_pos, *_ = load_robot_motion(motion_path)
 
-        dof_pos = motion_data["dof_pos"]
-        frame_rate = motion_data["fps"]
         motion = np.zeros((dof_pos.shape[0], dof_pos.shape[1] + 7), dtype=np.float32)
-        motion[:, :3] = motion_data["root_pos"]
-        motion[:, 3:7] = motion_data["root_rot"]
+        motion[:, :3] = root_pos
+        motion[:, 3:7] = root_rot_wxyz[:, [1, 2, 3, 0]]
         motion[:, 7:] = dof_pos
 
         if frame_rate > 30:
