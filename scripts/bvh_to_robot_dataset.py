@@ -10,6 +10,7 @@ import pickle
 from general_motion_retargeting.utils.lafan1 import load_lafan1_file
 from general_motion_retargeting.kinematics_model import KinematicsModel
 from general_motion_retargeting import GeneralMotionRetargeting as GMR
+from general_motion_retargeting import save_robot_motion
 from rich import print
 
 
@@ -47,6 +48,12 @@ if __name__ == "__main__":
         type=int,
     )
 
+    parser.add_argument(
+        "--output_ext",
+        default=".pkl",
+        choices=[".pkl", ".npz"],
+    )
+
     args = parser.parse_args()
     
     src_folder = args.src_folder
@@ -65,7 +72,7 @@ if __name__ == "__main__":
             bvh_file_path = os.path.join(dirpath, filename)
             
             # get the target file path
-            tgt_file_path = bvh_file_path.replace(src_folder, tgt_folder).replace(".bvh", ".pkl")
+            tgt_file_path = os.path.splitext(bvh_file_path.replace(src_folder, tgt_folder))[0] + args.output_ext
 
             if os.path.exists(tgt_file_path) and not args.override:
                 print(f"Skipping {bvh_file_path} because {tgt_file_path} exists")
@@ -151,8 +158,6 @@ if __name__ == "__main__":
             }
             
 
-            os.makedirs(os.path.dirname(tgt_file_path), exist_ok=True)
-            with open(tgt_file_path, "wb") as f:
-                pickle.dump(motion_data, f)
+            save_robot_motion(tgt_file_path, motion_data)
 
     print("Done. saved to ", tgt_folder)

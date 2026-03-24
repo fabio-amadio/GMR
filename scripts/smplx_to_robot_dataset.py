@@ -14,6 +14,7 @@ import torch
 import pickle
 
 from general_motion_retargeting import GeneralMotionRetargeting as GMR
+from general_motion_retargeting import save_robot_motion
 from general_motion_retargeting.utils.smpl import load_smplx_file, get_smplx_data_offline_fast
 from general_motion_retargeting.kinematics_model import KinematicsModel
 from general_motion_retargeting import IK_CONFIG_ROOT
@@ -36,7 +37,7 @@ def check_memory(threshold_gb=30):  # adjust based on your available memory
 HERE = pathlib.Path(__file__).parent
 
 
-def process_file(smplx_file_path, tgt_file_path, tgt_robot, SMPLX_FOLDER, tgt_folder, total_files, verbose=False):
+def process_file(smplx_file_path, tgt_file_path, tgt_robot, SMPLX_FOLDER, tgt_folder, output_ext, total_files, verbose=False):
     def log_memory(message):
         if verbose:
             process = psutil.Process(os.getpid())
@@ -141,14 +142,12 @@ def process_file(smplx_file_path, tgt_file_path, tgt_robot, SMPLX_FOLDER, tgt_fo
     }
 
 
-    os.makedirs(os.path.dirname(tgt_file_path), exist_ok=True)
-    with open(tgt_file_path, "wb") as f:
-        pickle.dump(motion_data, f)
-        
+    save_robot_motion(tgt_file_path, motion_data)
+
     # Progress print based on tgt_folder
     done = 0
     for root, _, files in os.walk(tgt_folder):
-        done += len([f for f in files if f.endswith('.pkl')])
+        done += len([f for f in files if f.endswith(output_ext)])
     print(f"Processed {done}/{total_files}: {tgt_file_path}")
     
     if verbose:
@@ -180,6 +179,7 @@ def main():
     
     parser.add_argument("--override", default=False, action="store_true")
     parser.add_argument("--num_cpus", default=4, type=int)
+    parser.add_argument("--output_ext", default=".pkl", choices=[".pkl", ".npz"])
     args = parser.parse_args()
     
     # print the total number of cpus and gpus
@@ -215,7 +215,8 @@ def main():
                 continue
             if filename.endswith((".pkl", ".npz")):
                 smplx_file_path = os.path.join(dirpath, filename)
-                tgt_file_path = smplx_file_path.replace(src_folder, tgt_folder).replace(".npz", ".pkl")
+                tgt_base_path = os.path.splitext(smplx_file_path.replace(src_folder, tgt_folder))[0]
+                tgt_file_path = tgt_base_path + args.output_ext
                 if not os.path.exists(tgt_file_path) or args.override:
                     args_list.append((smplx_file_path, tgt_file_path, args.robot, SMPLX_FOLDER, tgt_folder))
     print("full args_list:", len(args_list))
@@ -239,7 +240,7 @@ def main():
     total_files = len(args_list)
     print(f"Total number of files to process: {total_files}")
     with mp.Pool(args.num_cpus) as pool:
-        pool.starmap(process_file, [args + (total_files, verbose) for args in args_list])
+        pool.starmap(process_file, [task_args + (args.output_ext, total_files, verbose) for task_args in args_list])
 
     print("Done. Saved to ", tgt_folder)
 

@@ -552,3 +552,50 @@ The original robot models can be found at the following locations:
 * [PAL Robotics' Talos](https://github.com/google-deepmind/mujoco_menagerie): [Link to file](https://github.com/google-deepmind/mujoco_menagerie/tree/main/pal_talos)
 * [Toddlerbot](https://github.com/hshi74/toddlerbot): [Link to file](https://github.com/hshi74/toddlerbot/tree/main/toddlerbot/descriptions/toddlerbot_active)
 * [Unitree G1](https://github.com/unitreerobotics/unitree_ros): [Link to file](https://github.com/unitreerobotics/unitree_ros/tree/master/robots/g1_description)
+
+## Retargeting from Precomputed SMPL-X Body Poses
+
+If you already have a lightweight SMPL-X body-pose file such as `motion_shape.npz` with the keys `body_names`, `body_pos`, `body_quat`, and `hz`, you can retarget a single motion directly while visualizing it in MuJoCo:
+
+```bash
+conda activate gmr
+python scripts/smplx_bodypos_to_robot.py --motion_file <path_to_motion_shape.npz> --robot unitree_g1 --rate_limit
+```
+
+By default, this opens the MuJoCo visualization window and saves the retargeted robot motion next to the source file as `motion_shape_g1.npz`.
+
+If you want to choose the output path explicitly:
+
+```bash
+python scripts/smplx_bodypos_to_robot.py --motion_file <path_to_motion_shape.npz> --robot unitree_g1 --save_path <path_to_save_robot_data.npz> --rate_limit
+```
+
+If you want to record a video, add `--record_video` and optionally `--video_path <your_video_path.mp4>`.
+
+To replay the saved robot motion later:
+
+```bash
+python scripts/vis_robot_motion.py --robot unitree_g1 --robot_motion_path <path_to_motion_shape_g1.npz>
+```
+
+To retarget all `motion_shape.npz` files in a folder recursively:
+
+```bash
+python scripts/smplx_bodypos_to_robot_dataset.py --src_folder <path_to_folder_with_motion_shape_files> --num_workers 1
+```
+
+This scans recursively for files named `motion_shape.npz` and writes `motion_shape_g1.npz` next to each source file by default.
+
+If you want to mirror the outputs into a separate target folder instead:
+
+```bash
+python scripts/smplx_bodypos_to_robot_dataset.py --src_folder <path_to_folder_with_motion_shape_files> --tgt_folder <path_to_save_robot_data_folder> --num_workers 1
+```
+
+Useful options:
+- `--override`: overwrite existing `motion_shape_g1.npz` files
+- `--output_name <name>.npz`: change the per-motion output filename
+- `--num_workers <N>`: process multiple motions in parallel; `1` is the safest default
+
+The batch script uses `verbose=False` internally, so it should stay much quieter than the interactive viewer path.
+

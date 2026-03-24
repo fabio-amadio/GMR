@@ -16,6 +16,7 @@ from rich import print
 from general_motion_retargeting.utils.xsens_vendor.xsens_to_gmr_adapter import XsensToGMR
 from general_motion_retargeting import GeneralMotionRetargeting as GMR
 from general_motion_retargeting import RobotMotionViewer
+from general_motion_retargeting import save_robot_motion
 
 # Global flag for graceful shutdown
 g_running = True
@@ -78,7 +79,14 @@ if __name__ == "__main__":
     parser.add_argument(
         "--save_dir",
         default=None,
-        help="Directory to save the robot motion CSV. If not set, no file is saved.",
+        help="Directory to save the robot motion file. If not set, no file is saved.",
+    )
+
+    parser.add_argument(
+        "--output_ext",
+        default=".pkl",
+        choices=[".pkl", ".npz"],
+        help="Robot motion file extension to write when --save_dir is set.",
     )
 
     args = parser.parse_args()
@@ -200,14 +208,13 @@ if __name__ == "__main__":
 
         # Save trajectory
         if args.save_dir is not None and qpos_list:
-            import pickle
             root_pos = np.array([qpos[:3] for qpos in qpos_list])
             # save from wxyz to xyzw
-            root_rot = np.array([qpos[3:7][[1,2,3,0]] for qpos in qpos_list])
+            root_rot = np.array([qpos[3:7][[1, 2, 3, 0]] for qpos in qpos_list])
             dof_pos = np.array([qpos[7:] for qpos in qpos_list])
             local_body_pos = None
             body_names = None
-            
+
             motion_data = {
                 "fps": target_fps,
                 "root_pos": root_pos,
@@ -216,9 +223,9 @@ if __name__ == "__main__":
                 "local_body_pos": local_body_pos,
                 "link_body_list": body_names,
             }
-            with open(args.save_path, "wb") as f:
-                pickle.dump(motion_data, f)
-            print(f"Saved to {args.save_path}")
+            save_path = os.path.join(args.save_dir, f"{args.robot}_xsens_live{args.output_ext}")
+            save_robot_motion(save_path, motion_data)
+            print(f"Saved to {save_path}")
 
         # Print final stats
         print(f"\nTotal retargeted: {total_frames}")
